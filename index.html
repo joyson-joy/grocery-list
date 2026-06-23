@@ -618,7 +618,7 @@
       showSync('Saving…');
       const res = await fetch(BIN_URL, {
         method: 'PUT',
-        headers: { 'X-Master-Key': API_KEY, 'Content-Type': 'application/json' },
+        headers: { 'X-Access-Key': API_KEY, 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
       if (!res.ok) throw new Error(`Save failed: ${res.status}`);
