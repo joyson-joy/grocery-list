@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Grocery List</title>
+  <style>
+    :root {
+      --bg: #f0f4ff;
+      --surface: #ffffff;
+      --primary: #3b6fd4;
+      --primary-dark: #2a54b0;
+      --accent: #5b8dee;
+      --accent-dark: #1e40af;
+      --text: #1e1e2e;
+      --text-muted: #6b7280;
+      --border: #dbe4ff;
+      --checked-bg: #f5f7ff;
+      --checked-text: #9ca3af;
+      --shadow: 0 2px 12px rgba(59,111,212,0.10);
+      --radius: 14px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+      color: #fff;
+      padding: 20px 20px 16px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      box-shadow: 0 2px 16px rgba(59,111,212,0.25);
+    }
+    header h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.5px; }
+    header p  { font-size: 0.78rem; opacity: 0.85; margin-top: 2px; }
+
+    /* ── Tab bar ── */
+    .tabs {
+      display: flex;
+      background: var(--surface);
+      border-bottom: 2px solid var(--border);
+      position: sticky;
+      top: 72px;
+      z-index: 9;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 13px 0;
+      border: none;
+      background: none;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      position: relative;
+    }
+    .tab-btn.active { color: var(--primary); }
+    .tab-btn.active::after {
+      content: '';
+      position: absolute;
+      bottom: -2px; left: 16%; right: 16%;
+      height: 2.5px;
+      background: var(--primary);
+      border-radius: 2px;
+    }
+    .tab-btn .badge {
+      display: inline-block;
+      background: var(--accent);
+      color: #fff;
+      font-size: 0.62rem;
+      font-weight: 700;
+      border-radius: 99px;
+      padding: 1px 5px;
+      margin-left: 3px;
+      vertical-align: middle;
+      line-height: 1.4;
+    }
+
+    /* ── Pages ── */
+    .page { display: none; flex: 1; flex-direction: column; }
+    .page.active { display: flex; }
+
+    /* ── Store filter chips ── */
+    .filter-bar {
+      display: flex;
+      gap: 8px;
+      padding: 10px 16px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .filter-bar::-webkit-scrollbar { display: none; }
+    .filter-chip {
+      white-space: nowrap;
+      padding: 5px 13px;
+      border-radius: 99px;
+      border: 1.5px solid var(--border);
+      background: none;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .filter-chip.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+
+    /* ── List container ── */
+    .list-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px 100px;
+    }
+
+    /* ── Store section ── */
+    .store-section { margin-bottom: 18px; }
+    .store-section-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 2px 8px;
+    }
+    .store-section-header .store-icon {
+      width: 30px; height: 30px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.85rem;
+      color: #fff;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .store-section-header .store-name {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .store-section-header .store-count {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* ── Item card ── */
+    .item-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 13px 13px;
+      margin-bottom: 7px;
+      box-shadow: var(--shadow);
+      border: 1.5px solid transparent;
+      animation: slideIn 0.18s ease;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .item-card.purchased {
+      background: var(--checked-bg);
+      border-color: #bfcfff;
+    }
+
+    /* checkbox */
+    .check-wrap { flex-shrink: 0; width: 26px; height: 26px; }
+    .check-wrap input[type="checkbox"] { display: none; }
+    .check-box {
+      width: 26px; height: 26px;
+      border-radius: 8px;
+      border: 2px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s;
+      background: var(--bg);
+    }
+    .check-wrap input:checked + .check-box {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      border-color: transparent;
+    }
+    .check-wrap input:checked + .check-box::after {
+      content: '✓';
+      color: #fff;
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .item-body { flex: 1; min-width: 0; }
+    .item-name {
+      font-size: 0.95rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .item-card.purchased .item-name {
+      color: var(--checked-text);
+      text-decoration: line-through;
+    }
+    .item-qty {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .delete-btn {
+      flex-shrink: 0;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #93b4f0;
+      font-size: 1.1rem;
+      padding: 4px;
+      line-height: 1;
+      transition: color 0.15s;
+    }
+    .delete-btn:hover { color: var(--accent-dark); }
+
+    /* ── Empty state ── */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-muted);
+    }
+    .empty-state .icon { font-size: 3rem; margin-bottom: 10px; }
+    .empty-state p { font-size: 0.9rem; line-height: 1.6; }
+
+    /* ── Purchased page ── */
+    .purchased-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px 100px;
+    }
+    .purchased-date-group { margin-bottom: 18px; }
+    .purchased-date-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      padding: 6px 2px 6px;
+    }
+    .purchased-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      margin-bottom: 7px;
+      box-shadow: var(--shadow);
+      border-left: 3px solid var(--primary);
+    }
+    .pi-body { flex: 1; min-width: 0; }
+    .pi-name {
+      font-size: 0.93rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .pi-meta {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-top: 3px;
+      flex-wrap: wrap;
+    }
+    .pi-time { font-size: 0.72rem; color: var(--text-muted); }
+    .pi-store-tag {
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 99px;
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    /* ── Stores page ── */
+    .stores-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px 100px;
+    }
+    .store-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin-bottom: 8px;
+      box-shadow: var(--shadow);
+      animation: slideIn 0.18s ease;
+    }
+    .store-card .store-avatar {
+      width: 42px; height: 42px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+      color: #fff;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+    .store-card .sc-body { flex: 1; min-width: 0; }
+    .store-card .sc-name {
+      font-size: 0.97rem;
+      font-weight: 700;
+    }
+    .store-card .sc-count {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .store-delete-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #93b4f0;
+      font-size: 1.1rem;
+      padding: 4px;
+      line-height: 1;
+      transition: color 0.15s;
+    }
+    .store-delete-btn:hover { color: var(--accent-dark); }
+
+    /* ── Section header bar ── */
+    .section-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px 4px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .clear-btn {
+      background: none;
+      border: 1.5px solid #bbf7d0;
+      border-radius: 8px;
+      padding: 4px 12px;
+      color: var(--accent-dark);
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    /* ── FAB ── */
+    .fab {
+      position: fixed;
+      bottom: 24px;
+      right: 50%;
+      transform: translateX(50%);
+      max-width: 480px;
+      width: calc(100% - 32px);
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      color: #fff;
+      border: none;
+      border-radius: 14px;
+      padding: 15px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(59,111,212,0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      z-index: 8;
+      transition: opacity 0.15s;
+    }
+    .fab:active { opacity: 0.85; }
+    .fab.hidden { display: none; }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(30,30,46,0.45);
+      z-index: 100;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--surface);
+      border-radius: 20px 20px 0 0;
+      width: 100%;
+      max-width: 480px;
+      padding: 24px 20px 36px;
+      animation: slideUp 0.22s ease;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to   { transform: translateY(0); }
+    }
+    .modal h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 18px; }
+    .modal label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 5px;
+      margin-top: 14px;
+    }
+    .modal label:first-of-type { margin-top: 0; }
+    .modal input, .modal select {
+      width: 100%;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 0.95rem;
+      color: var(--text);
+      outline: none;
+      background: var(--bg);
+      transition: border-color 0.15s;
+    }
+    .modal input:focus, .modal select:focus { border-color: var(--primary); }
+    .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+    .btn-cancel {
+      flex: 1; padding: 12px; border-radius: 12px;
+      border: 1.5px solid var(--border); background: none;
+      font-size: 0.95rem; font-weight: 600; color: var(--text-muted); cursor: pointer;
+    }
+    .btn-primary {
+      flex: 2; padding: 12px; border-radius: 12px; border: none;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      color: #fff; font-size: 0.95rem; font-weight: 700; cursor: pointer;
+    }
+
+    .no-stores-note {
+      text-align: center;
+      padding: 14px;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      background: #f0fdf4;
+      border-radius: 10px;
+      border: 1.5px dashed #bfcfff;
+      margin-bottom: 12px;
+    }
+
+    /* ── Loading & sync states ── */
+    .loading-screen {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      gap: 16px;
+    }
+    .loading-screen p { font-size: 0.9rem; color: var(--text-muted); }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .sync-bar {
+      position: fixed;
+      top: 0; left: 50%;
+      transform: translateX(-50%);
+      max-width: 480px;
+      width: 100%;
+      background: var(--primary);
+      color: #fff;
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-align: center;
+      padding: 6px;
+      z-index: 50;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+    .sync-bar.error { background: #dc2626; }
+    .sync-bar.hidden { opacity: 0; }
+  </style>
+</head>
+<body>
+
+  <!-- Loading screen -->
+  <div class="loading-screen" id="loading-screen">
+    <div class="spinner"></div>
+    <p>Loading your grocery list…</p>
+  </div>
+
+  <!-- Sync status bar -->
+  <div class="sync-bar hidden" id="sync-bar"></div>
+
+  <header>
+    <h1>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>Gia's Grocery List
+    </h1>
+    <p>Shared household shopping list</p>
+  </header>
+
+  <div class="tabs">
+    <button class="tab-btn active" id="tab-list" onclick="switchTab('list')">
+      List <span class="badge" id="pending-badge">0</span>
+    </button>
+    <button class="tab-btn" id="tab-purchased" onclick="switchTab('purchased')">
+      Purchased <span class="badge" id="purchased-badge" style="background:var(--primary-dark)">0</span>
+    </button>
+    <button class="tab-btn" id="tab-stores" onclick="switchTab('stores')">
+      Stores <span class="badge" id="stores-badge" style="background:var(--accent-dark)">0</span>
+    </button>
+  </div>
+
+  <!-- Shopping List Page -->
+  <div class="page active" id="page-list">
+    <div class="filter-bar" id="filter-bar"></div>
+    <div class="section-bar">
+      <span id="list-count-label">0 items</span>
+    </div>
+    <div class="list-container" id="grocery-list"></div>
+  </div>
+
+  <!-- Purchased Page -->
+  <div class="page" id="page-purchased">
+    <div class="section-bar">
+      <span id="purchased-count-label">0 purchased</span>
+      <button class="clear-btn" onclick="clearPurchased()">Clear all</button>
+    </div>
+    <div class="purchased-list" id="purchased-list"></div>
+  </div>
+
+  <!-- Stores Page -->
+  <div class="page" id="page-stores">
+    <div class="section-bar">
+      <span id="stores-count-label">0 stores</span>
+    </div>
+    <div class="stores-list" id="stores-list"></div>
+  </div>
+
+  <!-- FAB -->
+  <button class="fab" id="fab" onclick="openItemModal()">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Item
+  </button>
+
+  <!-- Add Item Modal -->
+  <div class="modal-overlay" id="item-modal" onclick="overlayClick(event,'item-modal')">
+    <div class="modal">
+      <h2>Add Grocery Item</h2>
+      <label>Item name *</label>
+      <input type="text" id="item-name" placeholder="e.g. Whole Milk" autocomplete="off" />
+      <label>Quantity</label>
+      <input type="text" id="item-qty" placeholder="e.g. 2 gallons" autocomplete="off" />
+      <label>Store *</label>
+      <select id="item-store"></select>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeModal('item-modal')">Cancel</button>
+        <button class="btn-primary" onclick="addItem()">Add Item</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Store Modal -->
+  <div class="modal-overlay" id="store-modal" onclick="overlayClick(event,'store-modal')">
+    <div class="modal">
+      <h2>Add Store</h2>
+      <label>Store name *</label>
+      <input type="text" id="store-name" placeholder="e.g. Costco" autocomplete="off" />
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeModal('store-modal')">Cancel</button>
+        <button class="btn-primary" onclick="addStore()">Add Store</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── JSONBin config ────────────────────────────────────────────────────────
+    const BIN_ID  = '6a39f2fbda38895dfeef1169';
+    const API_KEY = '%%JSONBIN_API_KEY%%';
+    const BIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+
+    let data = { stores: [], items: [] };
+    let saveTimer = null;
+
+    async function loadData() {
+      const res = await fetch(`${BIN_URL}/latest`, {
+        headers: { 'X-Master-Key': API_KEY }
+      });
+      if (!res.ok) throw new Error(`Load failed: ${res.status}`);
+      const json = await res.json();
+      return json.record || { stores: [], items: [] };
+    }
+
+    async function saveData() {
+      showSync('Saving…');
+      const res = await fetch(BIN_URL, {
+        method: 'PUT',
+        headers: { 'X-Master-Key': API_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) throw new Error(`Save failed: ${res.status}`);
+      showSync('Saved', true);
+    }
+
+    function scheduleSave() {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        saveData().catch(err => showSync('Save failed — check connection', false, true));
+      }, 600);
+    }
+
+    // ── Sync bar ──────────────────────────────────────────────────────────────
+    let syncHideTimer = null;
+    function showSync(msg, autoHide = false, isError = false) {
+      const bar = document.getElementById('sync-bar');
+      bar.textContent = msg;
+      bar.classList.remove('hidden', 'error');
+      if (isError) bar.classList.add('error');
+      clearTimeout(syncHideTimer);
+      if (autoHide) syncHideTimer = setTimeout(() => bar.classList.add('hidden'), 1500);
+    }
+
+    // ── Tab & filter state ───────────────────────────────────────────────────
+    let currentTab = 'list';
+    let activeFilter = 'All';
+
+    function switchTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.getElementById('tab-' + tab).classList.add('active');
+      document.getElementById('page-' + tab).classList.add('active');
+
+      const showFab = tab === 'list' || tab === 'stores';
+      const fab = document.getElementById('fab');
+      if (tab === 'list') {
+        fab.classList.remove('hidden');
+        fab.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Item';
+        fab.onclick = openItemModal;
+      } else if (tab === 'stores') {
+        fab.classList.remove('hidden');
+        fab.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Store';
+        fab.onclick = openStoreModal;
+      } else {
+        fab.classList.add('hidden');
+      }
+
+      render();
+    }
+
+    // ── Render ───────────────────────────────────────────────────────────────
+    function render() {
+      updateBadges();
+      if (currentTab === 'list') renderList();
+      else if (currentTab === 'purchased') renderPurchased();
+      else renderStores();
+    }
+
+    function updateBadges() {
+      document.getElementById('pending-badge').textContent   = data.items.filter(i => !i.purchased).length;
+      document.getElementById('purchased-badge').textContent = data.items.filter(i =>  i.purchased).length;
+      document.getElementById('stores-badge').textContent    = data.stores.length;
+    }
+
+    // ── Shopping List ────────────────────────────────────────────────────────
+    function renderList() {
+      buildFilterBar();
+      const container = document.getElementById('grocery-list');
+      const pending = data.items.filter(i => !i.purchased);
+
+      // Determine which stores to show
+      let storesToShow = data.stores;
+      if (activeFilter !== 'All') {
+        storesToShow = data.stores.filter(s => s.id === activeFilter);
+      }
+
+      // Count visible items
+      const visibleCount = storesToShow.reduce((acc, s) => {
+        return acc + pending.filter(i => i.storeId === s.id).length;
+      }, 0);
+
+      document.getElementById('list-count-label').textContent =
+        visibleCount + (visibleCount === 1 ? ' item' : ' items');
+
+      if (data.stores.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
+            <p>No stores yet.<br>Go to <strong>Stores</strong> tab to add your first store.</p>
+          </div>`;
+        return;
+      }
+
+      if (visibleCount === 0 && pending.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+            <p>Your list is empty.<br>Tap <strong>+ Add Item</strong> to get started.</p>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = '';
+
+      storesToShow.forEach(store => {
+        const items = pending.filter(i => i.storeId === store.id);
+
+        const section = document.createElement('div');
+        section.className = 'store-section';
+        section.innerHTML = `
+          <div class="store-section-header">
+            <div class="store-icon">${storeInitial(store.name)}</div>
+            <div class="store-name">${esc(store.name)}</div>
+            <div class="store-count">${items.length} item${items.length !== 1 ? 's' : ''}</div>
+          </div>
+        `;
+
+        if (items.length === 0) {
+          const empty = document.createElement('div');
+          empty.style.cssText = 'text-align:center;padding:12px;font-size:0.82rem;color:var(--text-muted);';
+          empty.textContent = 'No items for this store';
+          section.appendChild(empty);
+        } else {
+          items.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'item-card';
+            card.innerHTML = `
+              <label class="check-wrap">
+                <input type="checkbox" onchange="toggleItem('${item.id}', this.checked)" />
+                <div class="check-box"></div>
+              </label>
+              <div class="item-body">
+                <div class="item-name">${esc(item.name)}</div>
+                ${item.qty ? `<div class="item-qty">${esc(item.qty)}</div>` : ''}
+              </div>
+              <button class="delete-btn" onclick="deleteItem('${item.id}')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
+            `;
+            section.appendChild(card);
+          });
+        }
+
+        container.appendChild(section);
+      });
+    }
+
+    function buildFilterBar() {
+      const bar = document.getElementById('filter-bar');
+      const chips = [{ id: 'All', name: 'All' }, ...data.stores];
+      bar.innerHTML = '';
+      chips.forEach(s => {
+        const btn = document.createElement('button');
+        btn.className = 'filter-chip' + (activeFilter === s.id ? ' active' : '');
+        btn.textContent = s.name;
+        btn.onclick = () => { activeFilter = s.id; render(); };
+        bar.appendChild(btn);
+      });
+    }
+
+    // ── Purchased ────────────────────────────────────────────────────────────
+    function renderPurchased() {
+      const container = document.getElementById('purchased-list');
+      const purchased = data.items.filter(i => i.purchased)
+        .sort((a, b) => b.purchasedAt - a.purchasedAt);
+
+      document.getElementById('purchased-count-label').textContent =
+        purchased.length + (purchased.length === 1 ? ' item' : ' items') + ' purchased';
+
+      if (purchased.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+            <p>No purchased items yet.</p>
+          </div>`;
+        return;
+      }
+
+      const groups = {};
+      purchased.forEach(item => {
+        const label = dateLabel(item.purchasedAt);
+        if (!groups[label]) groups[label] = [];
+        groups[label].push(item);
+      });
+
+      container.innerHTML = '';
+      Object.entries(groups).forEach(([label, items]) => {
+        const group = document.createElement('div');
+        group.className = 'purchased-date-group';
+        group.innerHTML = `<div class="purchased-date-label">${label}</div>`;
+
+        items.forEach(item => {
+          const store = data.stores.find(s => s.id === item.storeId);
+          const el = document.createElement('div');
+          el.className = 'purchased-item';
+          el.innerHTML = `
+            <div class="pi-body">
+              <div class="pi-name">${esc(item.name)}</div>
+              <div class="pi-meta">
+                <span class="pi-time">${timeStr(item.purchasedAt)}${item.qty ? ' · ' + esc(item.qty) : ''}</span>
+                ${store ? `<span class="pi-store-tag">${esc(store.name)}</span>` : ''}
+              </div>
+            </div>
+          `;
+          group.appendChild(el);
+        });
+
+        container.appendChild(group);
+      });
+    }
+
+    // ── Stores page ──────────────────────────────────────────────────────────
+    function renderStores() {
+      const container = document.getElementById('stores-list');
+      document.getElementById('stores-count-label').textContent =
+        data.stores.length + (data.stores.length === 1 ? ' store' : ' stores');
+
+      if (data.stores.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
+            <p>No stores added yet.<br>Tap <strong>+ Add Store</strong> to create one.</p>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = '';
+      data.stores.forEach(store => {
+        const itemCount = data.items.filter(i => i.storeId === store.id && !i.purchased).length;
+        const card = document.createElement('div');
+        card.className = 'store-card';
+        card.innerHTML = `
+          <div class="store-avatar">${storeInitial(store.name)}</div>
+          <div class="sc-body">
+            <div class="sc-name">${esc(store.name)}</div>
+            <div class="sc-count">${itemCount} item${itemCount !== 1 ? 's' : ''} pending</div>
+          </div>
+          <button class="store-delete-btn" onclick="deleteStore('${store.id}')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    // ── Actions ──────────────────────────────────────────────────────────────
+    function addItem() {
+      const nameEl = document.getElementById('item-name');
+      const name = nameEl.value.trim();
+      if (!name) { nameEl.focus(); return; }
+      const storeId = document.getElementById('item-store').value;
+      if (!storeId) { alert('Please add a store first.'); return; }
+
+      data.items.unshift({
+        id: Date.now().toString(),
+        name,
+        qty: document.getElementById('item-qty').value.trim(),
+        storeId,
+        purchased: false,
+        addedAt: Date.now(),
+        purchasedAt: null,
+      });
+      scheduleSave();
+      closeModal('item-modal');
+      render();
+    }
+
+    function addStore() {
+      const nameEl = document.getElementById('store-name');
+      const name = nameEl.value.trim();
+      if (!name) { nameEl.focus(); return; }
+      if (data.stores.some(s => s.name.toLowerCase() === name.toLowerCase())) {
+        alert('A store with this name already exists.');
+        return;
+      }
+      data.stores.push({ id: Date.now().toString(), name });
+      scheduleSave();
+      closeModal('store-modal');
+      render();
+    }
+
+    function toggleItem(id, checked) {
+      const item = data.items.find(i => i.id === id);
+      if (!item) return;
+      item.purchased = checked;
+      item.purchasedAt = checked ? Date.now() : null;
+      scheduleSave();
+      setTimeout(render, 180);
+    }
+
+    function deleteItem(id) {
+      data.items = data.items.filter(i => i.id !== id);
+      scheduleSave();
+      render();
+    }
+
+    function deleteStore(id) {
+      const store = data.stores.find(s => s.id === id);
+      const itemCount = data.items.filter(i => i.storeId === id).length;
+      const msg = itemCount > 0
+        ? `Delete "${store.name}"? This will also remove ${itemCount} item(s) associated with it.`
+        : `Delete "${store.name}"?`;
+      if (!confirm(msg)) return;
+      data.stores = data.stores.filter(s => s.id !== id);
+      data.items  = data.items.filter(i => i.storeId !== id);
+      if (activeFilter === id) activeFilter = 'All';
+      scheduleSave();
+      render();
+    }
+
+    function clearPurchased() {
+      if (!data.items.some(i => i.purchased)) return;
+      if (!confirm('Remove all purchased items?')) return;
+      data.items = data.items.filter(i => !i.purchased);
+      scheduleSave();
+      render();
+    }
+
+    // ── Modals ───────────────────────────────────────────────────────────────
+    function openItemModal() {
+      if (data.stores.length === 0) {
+        alert('Please add at least one store before adding items.');
+        switchTab('stores');
+        return;
+      }
+      document.getElementById('item-name').value = '';
+      document.getElementById('item-qty').value = '';
+      const sel = document.getElementById('item-store');
+      sel.innerHTML = data.stores.map(s =>
+        `<option value="${s.id}">${esc(s.name)}</option>`
+      ).join('');
+      document.getElementById('item-modal').classList.add('open');
+      setTimeout(() => document.getElementById('item-name').focus(), 220);
+    }
+
+    function openStoreModal() {
+      document.getElementById('store-name').value = '';
+      document.getElementById('store-modal').classList.add('open');
+      setTimeout(() => document.getElementById('store-name').focus(), 220);
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('open');
+    }
+
+    function overlayClick(e, id) {
+      if (e.target === document.getElementById(id)) closeModal(id);
+    }
+
+    document.getElementById('item-name').addEventListener('keydown', e => { if (e.key === 'Enter') addItem(); });
+    document.getElementById('store-name').addEventListener('keydown', e => { if (e.key === 'Enter') addStore(); });
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    function esc(str) {
+      return String(str)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    function storeInitial(name) {
+      return name.trim().charAt(0).toUpperCase();
+    }
+
+    function dateLabel(ts) {
+      const d = new Date(ts), today = new Date(), yday = new Date(today);
+      yday.setDate(today.getDate() - 1);
+      if (sameDay(d, today)) return 'Today';
+      if (sameDay(d, yday)) return 'Yesterday';
+      return d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    }
+
+    function sameDay(a, b) {
+      return a.getFullYear() === b.getFullYear() &&
+             a.getMonth()    === b.getMonth()    &&
+             a.getDate()     === b.getDate();
+    }
+
+    function timeStr(ts) {
+      return new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // ── Init ─────────────────────────────────────────────────────────────────
+    (async () => {
+      try {
+        data = await loadData();
+      } catch (err) {
+        showSync('Failed to load — check connection', false, true);
+      }
+      document.getElementById('loading-screen').style.display = 'none';
+      render();
+    })();
+  </script>
+</body>
+</html>
