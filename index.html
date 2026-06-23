@@ -607,7 +607,7 @@
 
     async function loadData() {
       const res = await fetch(`${BIN_URL}/latest`, {
-        headers: { 'X-Master-Key': API_KEY }
+        headers: { 'X-Access-Key': API_KEY }
       });
       if (!res.ok) throw new Error(`Load failed: ${res.status}`);
       const json = await res.json();
