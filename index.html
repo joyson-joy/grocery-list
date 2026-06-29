@@ -1057,7 +1057,7 @@
     }
 
     // ── Touch drag (iOS / mobile) ────────────────────────────────────────────
-    const touchDrag = { active: false, type: null, id: null, clone: null, sourceEl: null, offsetX: 0, offsetY: 0 };
+    const touchDrag = { active: false, type: null, id: null, clone: null, sourceEl: null, offsetX: 0, offsetY: 0, targetStoreId: null };
 
     function startItemTouchDrag(e, id) {
       if (e.touches.length !== 1) return;
@@ -1096,31 +1096,50 @@
     document.addEventListener('touchmove', e => {
       if (!touchDrag.active) return;
       const touch = e.touches[0];
+      const x = touch.clientX, y = touch.clientY;
+
       if (touchDrag.clone) {
-        touchDrag.clone.style.left = (touch.clientX - touchDrag.offsetX) + 'px';
-        touchDrag.clone.style.top  = (touch.clientY - touchDrag.offsetY) + 'px';
+        touchDrag.clone.style.left = (x - touchDrag.offsetX) + 'px';
+        touchDrag.clone.style.top  = (y - touchDrag.offsetY) + 'px';
       }
+
+      // Continuously track closest store section and highlight it
+      if (touchDrag.type === 'item') {
+        const sections = document.querySelectorAll('.store-section[data-store-id]');
+        let best = null, bestDist = Infinity;
+        sections.forEach(sec => {
+          const r = sec.getBoundingClientRect();
+          const dist = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
+          if (dist < bestDist) { bestDist = dist; best = sec; }
+        });
+        sections.forEach(sec => sec.classList.toggle('drag-over-section', sec === best));
+        touchDrag.targetStoreId = best?.dataset.storeId || null;
+      }
+
       e.preventDefault();
     }, { passive: false });
 
     document.addEventListener('touchend', e => {
       if (!touchDrag.active) return;
       const touch = e.changedTouches[0];
+
       if (touchDrag.clone)    { touchDrag.clone.remove(); touchDrag.clone = null; }
       if (touchDrag.sourceEl) { touchDrag.sourceEl.style.opacity = ''; touchDrag.sourceEl = null; }
+      document.querySelectorAll('.store-section.drag-over-section').forEach(el => el.classList.remove('drag-over-section'));
 
       const el = document.elementFromPoint(touch.clientX, touch.clientY);
 
       if (touchDrag.type === 'item') {
-        const targetCard    = el?.closest('.item-card');
-        const targetSection = el?.closest('.store-section');
+        const targetCard = el?.closest('.item-card');
         if (targetCard?.dataset.id && targetCard.dataset.id !== touchDrag.id) {
+          // Dropped on a specific item — reorder
           const fi = data.items.findIndex(i => i.id === touchDrag.id);
           const ti = data.items.findIndex(i => i.id === targetCard.dataset.id);
           if (fi !== -1 && ti !== -1) { const [m] = data.items.splice(fi, 1); data.items.splice(ti, 0, m); scheduleSave(); render(); }
-        } else if (targetSection?.dataset.storeId) {
+        } else if (touchDrag.targetStoreId) {
+          // Dropped anywhere else — move to the closest highlighted store
           const item = data.items.find(i => i.id === touchDrag.id);
-          if (item && item.storeId !== targetSection.dataset.storeId) { item.storeId = targetSection.dataset.storeId; scheduleSave(); render(); }
+          if (item && item.storeId !== touchDrag.targetStoreId) { item.storeId = touchDrag.targetStoreId; scheduleSave(); render(); }
         }
       } else if (touchDrag.type === 'store') {
         const targetCard = el?.closest('.store-card');
@@ -1131,7 +1150,7 @@
         }
       }
 
-      touchDrag.active = false; touchDrag.type = null; touchDrag.id = null;
+      touchDrag.active = false; touchDrag.type = null; touchDrag.id = null; touchDrag.targetStoreId = null;
     });
 
     // ── Refresh ──────────────────────────────────────────────────────────────
