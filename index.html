@@ -798,7 +798,7 @@
             card.setAttribute('ondragover', `onItemDragOver(event,'${item.id}')`);
             card.setAttribute('ondrop', `onItemDrop(event,'${item.id}')`);
             card.innerHTML = `
-              <div class="drag-handle" title="Drag to reorder">⠿</div>
+              <div class="drag-handle" title="Drag to reorder" ontouchstart="startItemTouchDrag(event,'${item.id}')">⠿</div>
               <label class="check-wrap">
                 <input type="checkbox" onchange="toggleItem('${item.id}', this.checked)" />
                 <div class="check-box"></div>
@@ -908,7 +908,7 @@
         card.setAttribute('ondragover', `onStoreDragOver(event,'${store.id}')`);
         card.setAttribute('ondrop', `onStoreDrop(event,'${store.id}')`);
         card.innerHTML = `
-          <div class="drag-handle" title="Drag to reorder">⠿</div>
+          <div class="drag-handle" title="Drag to reorder" ontouchstart="startStoreTouchDrag(event,'${store.id}')">⠿</div>
           <div class="store-avatar">${storeInitial(store.name)}</div>
           <div class="sc-body">
             <div class="sc-name">${esc(store.name)}</div>
@@ -1056,6 +1056,84 @@
       return new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     }
 
+    // ── Touch drag (iOS / mobile) ────────────────────────────────────────────
+    const touchDrag = { active: false, type: null, id: null, clone: null, sourceEl: null, offsetX: 0, offsetY: 0 };
+
+    function startItemTouchDrag(e, id) {
+      if (e.touches.length !== 1) return;
+      const card = e.target.closest('.item-card');
+      if (!card) return;
+      const touch = e.touches[0], rect = card.getBoundingClientRect();
+      touchDrag.active = true; touchDrag.type = 'item'; touchDrag.id = id;
+      touchDrag.sourceEl = card;
+      touchDrag.offsetX = touch.clientX - rect.left;
+      touchDrag.offsetY = touch.clientY - rect.top;
+      const clone = card.cloneNode(true);
+      Object.assign(clone.style, { position:'fixed', width:rect.width+'px', left:rect.left+'px', top:rect.top+'px', opacity:'0.9', pointerEvents:'none', zIndex:'1000', boxShadow:'0 8px 24px rgba(59,111,212,0.3)', transform:'scale(1.03)', borderRadius:'var(--radius)' });
+      document.body.appendChild(clone);
+      touchDrag.clone = clone;
+      card.style.opacity = '0.35';
+      e.preventDefault();
+    }
+
+    function startStoreTouchDrag(e, id) {
+      if (e.touches.length !== 1) return;
+      const card = e.target.closest('.store-card');
+      if (!card) return;
+      const touch = e.touches[0], rect = card.getBoundingClientRect();
+      touchDrag.active = true; touchDrag.type = 'store'; touchDrag.id = id;
+      touchDrag.sourceEl = card;
+      touchDrag.offsetX = touch.clientX - rect.left;
+      touchDrag.offsetY = touch.clientY - rect.top;
+      const clone = card.cloneNode(true);
+      Object.assign(clone.style, { position:'fixed', width:rect.width+'px', left:rect.left+'px', top:rect.top+'px', opacity:'0.9', pointerEvents:'none', zIndex:'1000', boxShadow:'0 8px 24px rgba(59,111,212,0.3)', transform:'scale(1.03)', borderRadius:'var(--radius)' });
+      document.body.appendChild(clone);
+      touchDrag.clone = clone;
+      card.style.opacity = '0.35';
+      e.preventDefault();
+    }
+
+    document.addEventListener('touchmove', e => {
+      if (!touchDrag.active) return;
+      const touch = e.touches[0];
+      if (touchDrag.clone) {
+        touchDrag.clone.style.left = (touch.clientX - touchDrag.offsetX) + 'px';
+        touchDrag.clone.style.top  = (touch.clientY - touchDrag.offsetY) + 'px';
+      }
+      e.preventDefault();
+    }, { passive: false });
+
+    document.addEventListener('touchend', e => {
+      if (!touchDrag.active) return;
+      const touch = e.changedTouches[0];
+      if (touchDrag.clone)    { touchDrag.clone.remove(); touchDrag.clone = null; }
+      if (touchDrag.sourceEl) { touchDrag.sourceEl.style.opacity = ''; touchDrag.sourceEl = null; }
+
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+
+      if (touchDrag.type === 'item') {
+        const targetCard    = el?.closest('.item-card');
+        const targetSection = el?.closest('.store-section');
+        if (targetCard?.dataset.id && targetCard.dataset.id !== touchDrag.id) {
+          const fi = data.items.findIndex(i => i.id === touchDrag.id);
+          const ti = data.items.findIndex(i => i.id === targetCard.dataset.id);
+          if (fi !== -1 && ti !== -1) { const [m] = data.items.splice(fi, 1); data.items.splice(ti, 0, m); scheduleSave(); render(); }
+        } else if (targetSection?.dataset.storeId) {
+          const item = data.items.find(i => i.id === touchDrag.id);
+          if (item && item.storeId !== targetSection.dataset.storeId) { item.storeId = targetSection.dataset.storeId; scheduleSave(); render(); }
+        }
+      } else if (touchDrag.type === 'store') {
+        const targetCard = el?.closest('.store-card');
+        if (targetCard?.dataset.id && targetCard.dataset.id !== touchDrag.id) {
+          const fi = data.stores.findIndex(s => s.id === touchDrag.id);
+          const ti = data.stores.findIndex(s => s.id === targetCard.dataset.id);
+          if (fi !== -1 && ti !== -1) { const [m] = data.stores.splice(fi, 1); data.stores.splice(ti, 0, m); scheduleSave(); render(); }
+        }
+      }
+
+      touchDrag.active = false; touchDrag.type = null; touchDrag.id = null;
+    });
+
     // ── Refresh ──────────────────────────────────────────────────────────────
     async function refreshData() {
       const btn = document.getElementById('refresh-btn');
@@ -1163,7 +1241,7 @@
       try {
         data = await loadData();
       } catch (err) {
-        showSync('Failed to load: ' + err.message, false, true);
+        showSync('Failed to load — check connection', false, true);
       }
       document.getElementById('loading-screen').style.display = 'none';
       render();
