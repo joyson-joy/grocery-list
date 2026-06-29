@@ -343,6 +343,39 @@
     }
     .store-delete-btn:hover { color: var(--accent-dark); }
 
+    /* ── Drag & drop ── */
+    .drag-handle {
+      flex-shrink: 0;
+      color: #c7d8f8;
+      cursor: grab;
+      font-size: 1rem;
+      padding: 2px 4px;
+      line-height: 1;
+      user-select: none;
+      touch-action: none;
+    }
+    .drag-handle:active { cursor: grabbing; }
+    .item-card.dragging, .store-card.dragging { opacity: 0.35; }
+    .item-card.drag-over  { border-top: 2.5px solid var(--primary); margin-top: -2.5px; }
+    .store-card.drag-over { border-top: 2.5px solid var(--primary); margin-top: -2.5px; }
+    .store-section.drag-over-section { background: rgba(59,111,212,0.06); border-radius: var(--radius); }
+
+    /* ── Refresh button ── */
+    .refresh-btn {
+      background: none;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      padding: 4px 10px;
+      color: var(--primary);
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .refresh-btn:active { opacity: 0.7; }
+
     /* ── Section header bar ── */
     .section-bar {
       display: flex;
@@ -540,6 +573,10 @@
     <div class="filter-bar" id="filter-bar"></div>
     <div class="section-bar">
       <span id="list-count-label">0 items</span>
+      <button class="refresh-btn" onclick="refreshData()" id="refresh-btn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        Refresh
+      </button>
     </div>
     <div class="list-container" id="grocery-list"></div>
   </div>
@@ -596,14 +633,17 @@
     </div>
   </div>
 
+  <!-- dev-config.js sets window.DEV_JSONBIN_API_KEY locally; ignored by git -->
+  <script src="dev-config.js" onerror="void 0"></script>
   <script>
     // ── JSONBin config ────────────────────────────────────────────────────────
     const BIN_ID  = '6a39f2fbda38895dfeef1169';
-    const API_KEY = '%%JSONBIN_API_KEY%%';
+    const API_KEY = window.DEV_JSONBIN_API_KEY || '%%JSONBIN_API_KEY%%';
     const BIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
     let data = { stores: [], items: [] };
     let saveTimer = null;
+    let dragState = { type: null, id: null };
 
     async function loadData() {
       const res = await fetch(`${BIN_URL}/latest`, {
@@ -730,6 +770,10 @@
 
         const section = document.createElement('div');
         section.className = 'store-section';
+        section.dataset.storeId = store.id;
+        section.setAttribute('ondragover', `onSectionDragOver(event,'${store.id}')`);
+        section.setAttribute('ondragleave', `onSectionDragLeave(event,'${store.id}')`);
+        section.setAttribute('ondrop', `onSectionDrop(event,'${store.id}')`);
         section.innerHTML = `
           <div class="store-section-header">
             <div class="store-icon">${storeInitial(store.name)}</div>
@@ -747,7 +791,14 @@
           items.forEach(item => {
             const card = document.createElement('div');
             card.className = 'item-card';
+            card.draggable = true;
+            card.dataset.id = item.id;
+            card.setAttribute('ondragstart', `onItemDragStart(event,'${item.id}')`);
+            card.setAttribute('ondragend', 'onItemDragEnd(event)');
+            card.setAttribute('ondragover', `onItemDragOver(event,'${item.id}')`);
+            card.setAttribute('ondrop', `onItemDrop(event,'${item.id}')`);
             card.innerHTML = `
+              <div class="drag-handle" title="Drag to reorder">⠿</div>
               <label class="check-wrap">
                 <input type="checkbox" onchange="toggleItem('${item.id}', this.checked)" />
                 <div class="check-box"></div>
@@ -850,7 +901,14 @@
         const itemCount = data.items.filter(i => i.storeId === store.id && !i.purchased).length;
         const card = document.createElement('div');
         card.className = 'store-card';
+        card.draggable = true;
+        card.dataset.id = store.id;
+        card.setAttribute('ondragstart', `onStoreDragStart(event,'${store.id}')`);
+        card.setAttribute('ondragend', 'onStoreDragEnd()');
+        card.setAttribute('ondragover', `onStoreDragOver(event,'${store.id}')`);
+        card.setAttribute('ondrop', `onStoreDrop(event,'${store.id}')`);
         card.innerHTML = `
+          <div class="drag-handle" title="Drag to reorder">⠿</div>
           <div class="store-avatar">${storeInitial(store.name)}</div>
           <div class="sc-body">
             <div class="sc-name">${esc(store.name)}</div>
@@ -996,6 +1054,108 @@
 
     function timeStr(ts) {
       return new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // ── Refresh ──────────────────────────────────────────────────────────────
+    async function refreshData() {
+      const btn = document.getElementById('refresh-btn');
+      if (btn) btn.style.opacity = '0.5';
+      showSync('Refreshing…');
+      try {
+        data = await loadData();
+        showSync('Updated', true);
+        render();
+      } catch(err) {
+        showSync('Refresh failed — check connection', false, true);
+      } finally {
+        if (btn) btn.style.opacity = '';
+      }
+    }
+
+    // ── Drag & drop ──────────────────────────────────────────────────────────
+    function onItemDragStart(e, id) {
+      dragState = { type: 'item', id };
+      e.dataTransfer.effectAllowed = 'move';
+      setTimeout(() => {
+        const el = document.querySelector(`.item-card[data-id="${id}"]`);
+        if (el) el.classList.add('dragging');
+      }, 0);
+    }
+    function onItemDragEnd(e) {
+      document.querySelectorAll('.item-card.dragging').forEach(el => el.classList.remove('dragging'));
+      document.querySelectorAll('.item-card.drag-over').forEach(el => el.classList.remove('drag-over'));
+      document.querySelectorAll('.store-section.drag-over-section').forEach(el => el.classList.remove('drag-over-section'));
+    }
+    function onItemDragOver(e, id) {
+      if (dragState.type !== 'item') return;
+      e.preventDefault(); e.stopPropagation();
+      document.querySelectorAll('.item-card.drag-over').forEach(el => el.classList.remove('drag-over'));
+      const el = document.querySelector(`.item-card[data-id="${id}"]`);
+      if (el && id !== dragState.id) el.classList.add('drag-over');
+    }
+    function onItemDrop(e, targetId) {
+      e.preventDefault(); e.stopPropagation();
+      document.querySelectorAll('.item-card.drag-over').forEach(el => el.classList.remove('drag-over'));
+      if (dragState.type !== 'item' || dragState.id === targetId) return;
+      const fromIdx = data.items.findIndex(i => i.id === dragState.id);
+      const toIdx   = data.items.findIndex(i => i.id === targetId);
+      if (fromIdx === -1 || toIdx === -1) return;
+      const [moved] = data.items.splice(fromIdx, 1);
+      data.items.splice(toIdx, 0, moved);
+      scheduleSave(); render();
+    }
+    function onSectionDragOver(e, storeId) {
+      if (dragState.type !== 'item') return;
+      const item = data.items.find(i => i.id === dragState.id);
+      if (!item || item.storeId === storeId) return;
+      e.preventDefault();
+      document.querySelectorAll('.store-section.drag-over-section').forEach(el => el.classList.remove('drag-over-section'));
+      const el = document.querySelector(`.store-section[data-store-id="${storeId}"]`);
+      if (el) el.classList.add('drag-over-section');
+    }
+    function onSectionDragLeave(e, storeId) {
+      const el = document.querySelector(`.store-section[data-store-id="${storeId}"]`);
+      if (el && !el.contains(e.relatedTarget)) el.classList.remove('drag-over-section');
+    }
+    function onSectionDrop(e, storeId) {
+      e.preventDefault();
+      document.querySelectorAll('.store-section.drag-over-section').forEach(el => el.classList.remove('drag-over-section'));
+      if (dragState.type !== 'item') return;
+      const item = data.items.find(i => i.id === dragState.id);
+      if (!item || item.storeId === storeId) return;
+      item.storeId = storeId;
+      scheduleSave(); render();
+    }
+
+    function onStoreDragStart(e, id) {
+      dragState = { type: 'store', id };
+      e.dataTransfer.effectAllowed = 'move';
+      setTimeout(() => {
+        const el = document.querySelector(`.store-card[data-id="${id}"]`);
+        if (el) el.classList.add('dragging');
+      }, 0);
+    }
+    function onStoreDragEnd() {
+      document.querySelectorAll('.store-card.dragging').forEach(el => el.classList.remove('dragging'));
+      document.querySelectorAll('.store-card.drag-over').forEach(el => el.classList.remove('drag-over'));
+    }
+    function onStoreDragOver(e, id) {
+      if (dragState.type !== 'store') return;
+      e.preventDefault();
+      document.querySelectorAll('.store-card.drag-over').forEach(el => el.classList.remove('drag-over'));
+      const el = document.querySelector(`.store-card[data-id="${id}"]`);
+      if (el && id !== dragState.id) el.classList.add('drag-over');
+    }
+    function onStoreDrop(e, targetId) {
+      e.preventDefault();
+      document.querySelectorAll('.store-card.drag-over').forEach(el => el.classList.remove('drag-over'));
+      if (dragState.type !== 'store' || dragState.id === targetId) return;
+      const fromIdx = data.stores.findIndex(s => s.id === dragState.id);
+      const toIdx   = data.stores.findIndex(s => s.id === targetId);
+      if (fromIdx === -1 || toIdx === -1) return;
+      const [moved] = data.stores.splice(fromIdx, 1);
+      data.stores.splice(toIdx, 0, moved);
+      scheduleSave(); render();
     }
 
     // ── Init ─────────────────────────────────────────────────────────────────
